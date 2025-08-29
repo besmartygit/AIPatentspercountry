@@ -3,43 +3,102 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Patents per million</title>
+  <title>Patents per million — stacked by year</title>
+  <!-- Font: Montserrat (close match to OECD wordmark) -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- Highcharts core + data + exporting modules -->
   <script src="https://code.highcharts.com/highcharts.js"></script>
   <script src="https://code.highcharts.com/modules/exporting.js"></script>
   <script src="https://code.highcharts.com/modules/offline-exporting.js"></script>
   <script src="https://code.highcharts.com/modules/export-data.js"></script>
   <style>
-    body { font-family: system-ui, Arial, sans-serif; margin: 20px; }
-    #container { width: 100%; height: 520px; }
-    .controls { margin: 12px 0; }
-    button { padding: 8px 12px; cursor: pointer; }
+    :root {
+      --brand-font: 'Montserrat', Arial, Helvetica, sans-serif;
+      --brand-text: #4d4f53;   /* neutral text (grey) */
+      --ui-bg: #ffffff;
+      --ui-border: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--brand-font);
+      color: var(--brand-text);
+      background: var(--ui-bg);
+      margin: 20px;
+    }
+    h2 { font-weight: 600; margin: 0 0 8px; }
+    #container { width: 100%; height: 560px; }
+    .controls {
+      margin: 12px 0 16px;
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    button, select {
+      font-family: var(--brand-font);
+      padding: 8px 12px; cursor: pointer; border-radius: 8px;
+      border: 1px solid var(--ui-border); background: #f9fafb;
+    }
+    button:hover { background:#f3f4f6; }
   </style>
 </head>
 <body>
-  <h2>Patents per Million (latest year per country)</h2>
+  <h2>Patents per Million — stacked by year</h2>
   <div class="controls">
     <button id="savePng">💾 Save PNG</button>
+    <label>
+      Stacking:
+      <select id="stackingMode">
+        <option value="normal" selected>Stacked</option>
+        <option value="">Grouped</option>
+        <option value="percent">100% Stacked</option>
+      </select>
+    </label>
   </div>
   <div id="container"></div>
 
   <script>
-    // Embedded data from Python
-    const categories = ["USA", "KOR", "GBR", "AUS", "NLD", "CHE", "JPN", "DEU", "FRA", "ESP"];
-    const values = [17.99, 16.69, 11.06, 7.54, 5.64, 5.19, 3.93, 3.31, 1.81, 0.41];
-    const years = ["2022", "2022", "2022", "2022", "2022", "2022", "2022", "2022", "2022", "2022"];
+    // Embedded data from Python (dynamic, no hard-coded years)
+    const categories = ["KOR", "CHE", "JPN", "USA", "NLD", "DEU", "FRA", "GBR", "AUS", "ESP"];
+    const years = [2020, 2021, 2022];                 // e.g., [2019, 2020, 2021, 2022]
+    const dataByYear = {"2020": [39.79, 31.49, 27.04, 20.25, 16.32, 14.9, 9.11, 8.2, 6.53, 3.36], "2021": [40.93, 30.29, 25.87, 19.6, 16.35, 13.12, 7.77, 6.57, 6.34, 3.03], "2022": [33.95, 25.79, 17.29, 17.46, 15.72, 10.08, 6.58, 5.64, 5.96, 2.32]};     // { "2019":[...], "2020":[...], ... }
 
-    // If countries have different latest years, show a note
-    let subtitle = '';
-    const uniqueYears = Array.from(new Set(years.filter(y => !!y)));
-    subtitle = uniqueYears.length === 1
-      ? 'Latest year: ' + uniqueYears[0]
-      : 'Latest year per country: ' + uniqueYears.join(', ');
+    // OECD-like palette from the logo (blues & greens + grey for overflow)
+    const brandPalette = [
+      '#2E7CB6', // blue
+      '#86BC25', // green
+      '#0B4F8A', // deep blue
+      '#A6CE39', // light green
+      '#1C5A99', // mid blue
+      '#6FAE21', // mid green
+      '#154A7D', // navy
+      '#C3E26A', // pale green
+      '#6D6E71'  // grey
+    ];
+
+    // Apply font + colors globally to Highcharts
+    Highcharts.setOptions({
+      chart: {
+        style: { fontFamily: "Montserrat, Arial, Helvetica, sans-serif" }
+      },
+      colors: brandPalette,
+      title: { style: { fontWeight: '600' } },
+      subtitle: { style: { fontWeight: '400' } },
+      legend: { itemStyle: { fontWeight: '500' } }
+    });
+
+    // Build one series per year dynamically (colors come from brandPalette)
+    const series = years.map(y => {
+      const key = String(y);
+      return {
+        name: key,
+        data: dataByYear[key] || []
+      };
+    });
+
+    const subtitleText = years.length ? `Years: ${years[0]}–${years[years.length - 1]}` : '';
 
     const chart = Highcharts.chart('container', {
       chart: { type: 'column' },
-      title: { text: 'Patents per Million (latest year)' },
-      subtitle: { text: subtitle },
+      title: { text: 'Patents per Million (stacked by year)' },
+      subtitle: { text: subtitleText },
       xAxis: {
         categories: categories,
         title: { text: 'Country' },
@@ -47,35 +106,42 @@
       },
       yAxis: {
         min: 0,
-        title: { text: 'Patents per million people' }
+        title: { text: 'Patents per million people' },
+        stackLabels: { enabled: true }
       },
+      legend: { title: { text: 'Year' } },
       tooltip: {
-        pointFormat: '<b>{point.y:.2f}</b> patents per million'
+        shared: true,
+        headerFormat: '<b>{point.key}</b><br/>',
+        pointFormat: '<span style="color:{point.color}">●</span> {series.name}: <b>{point.y:.2f}</b><br/>',
+        footerFormat: '<span style="opacity:0.7">Total: {point.total:.2f}</span>'
       },
       plotOptions: {
+        column: {
+          stacking: 'normal',   // default; UI below can change it
+          pointPadding: 0.05,
+          borderWidth: 0,
+          dataLabels: { enabled: false }
+        },
         series: {
-          dataLabels: { enabled: true, format: '{point.y:.2f}' }
+          animation: { duration: 300 }
         }
       },
-      series: [{
-        name: 'Patents per million',
-        data: values
-      }],
+      series,
       credits: { enabled: false },
       exporting: { enabled: true }  // shows the download menu (PNG/JPEG/PDF/SVG)
     });
 
     // Programmatic export (Save PNG button)
     document.getElementById('savePng').addEventListener('click', () => {
-      if (chart && chart.exportChartLocal) {
-        chart.exportChartLocal({
-          type: 'image/png',
-          filename: 'patents_per_million_latest'
-        });
-      } else {
-        // Fallback: open the built-in menu if local export is unavailable
-        alert('Local export not available; use the chart menu (≡) to download.');
-      }
+      chart?.exportChartLocal?.({ type: 'image/png', filename: 'patents_per_million_stacked' })
+        ?? alert('Local export not available; use the chart menu (≡) to download.');
+    });
+
+    // Stacking mode toggle (stacked / grouped / 100%)
+    document.getElementById('stackingMode').addEventListener('change', (e) => {
+      const mode = e.target.value || undefined; // '' => grouped (no stacking)
+      chart.update({ plotOptions: { column: { stacking: mode } } }, true, true, false);
     });
   </script>
 </body>
